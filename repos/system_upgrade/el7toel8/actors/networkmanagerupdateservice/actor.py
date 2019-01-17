@@ -1,21 +1,23 @@
-from leapp.actors import Actor
-from leapp.tags import ApplicationsPhaseTag, IPUWorkflowTag
-
 import os
-import six
-import subprocess
 from subprocess import CalledProcessError
 
-# On RHEL7 if the NetworkManager service was disabled and
-# NetworkManager-wait-online enabled, the former would not be
-# started. This changed on RHEL8, where NM-w-o 'Requires' NM and so NM
-# can be started even if disabled. Upon upgrade, to keep the previous
-# behavior we must disable NM-w-o when NM is disabled.
-# See also: https://bugzilla.redhat.com/show_bug.cgi?id=1520865
+from leapp.actors import Actor
+from leapp.libraries.stdlib import call
+from leapp.tags import ApplicationsPhaseTag, IPUWorkflowTag
+
 
 class NetworkManagerUpdateService(Actor):
     name = 'network_manager_update_service'
-    description = 'This actor updates NetworkManager services status when needed.'
+    description = """
+        This actor updates NetworkManager services status. On RHEL7 if
+        the NetworkManager service was disabled and
+        NetworkManager-wait-online enabled, the former would not be
+        started. This changed on RHEL8, where NM-w-o 'Requires' NM and
+        so NM can be started even if disabled. Upon upgrade, to keep
+        the previous behavior we must disable NM-w-o when NM is
+        disabled. See also:
+        https://bugzilla.redhat.com/show_bug.cgi?id=1520865
+    """
     consumes = ()
     produces = ()
     tags = (ApplicationsPhaseTag, IPUWorkflowTag)
@@ -27,7 +29,12 @@ class NetworkManagerUpdateService(Actor):
 
         if not nm_enabled and nmwo_enabled:
             self.log.info('Disabling NetworkManager-wait-online.service')
-            self.call(['systemctl', 'disable', 'NetworkManager-wait-online.service'])
+
+            try:
+                call(['systemctl', 'disable', 'NetworkManager-wait-online.service'])
+            except (OSError, CalledProcessError) as e:
+                self.log.warning('Error disabling NetworkManager-wait-online.service: {}'.format(e))
+                return
 
             nm_enabled = self.unit_enabled('NetworkManager.service')
             nmwo_enabled = self.unit_enabled('NetworkManager-wait-online.service')
@@ -40,17 +47,11 @@ class NetworkManagerUpdateService(Actor):
 
     def unit_enabled(self, name):
         try:
-            ret_list = self.call(['systemctl', 'is-enabled', name])
-            enabled = ret_list[0] == 'enabled'
-        except CalledProcessError:
+            ret = call(['systemctl', 'is-enabled', name])
+            if len(ret) > 0:
+                enabled = ret[0] == 'enabled'
+            else:
+                enabled = False
+        except (OSError, CalledProcessError):
             enabled = False
         return enabled
-
-    def call(self, args):
-        r = None
-        with open(os.devnull, mode='w') as err:
-            if six.PY3:
-                r = subprocess.check_output(args, stderr=err, encoding='utf-8')
-            else:
-                r = subprocess.check_output(args, stderr=err).decode('utf-8')
-        return r.splitlines()
