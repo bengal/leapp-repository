@@ -1,6 +1,6 @@
 from subprocess import CalledProcessError
 
-from leapp.libraries.stdlib import call
+from leapp.libraries.stdlib import run
 
 
 def is_hexstring(s):
@@ -14,14 +14,16 @@ def is_hexstring(s):
             return False
     return True
 
+
 def to_hexstring(s):
     return ":".join("{:02x}".format(c) for c in s.encode())
+
 
 def update_client_ids(logger):
     ''' Updates client-ids of NetworkManager connections through nmcli '''
 
     try:
-        uuids = call(['nmcli', '-t', '-f', 'uuid', 'connection', 'show'], split=True)
+        uuids = run(['nmcli', '-t', '-f', 'uuid', 'connection', 'show'], split=True)['stdout']
     except (OSError, CalledProcessError) as e:
         logger.warning('Error reading connection list: {}'.format(e))
         return
@@ -33,11 +35,11 @@ def update_client_ids(logger):
     for uuid in uuids:
         processed += 1
         try:
-            client_id = call(['nmcli', '-m', 'tabular', '-t',
-                              '-f','ipv4.dhcp-client-id',
-                              '-e', 'no',
-                              'connection', 'show', uuid],
-                             split=False)
+            client_id = run(['nmcli', '-m', 'tabular', '-t',
+                             '-f', 'ipv4.dhcp-client-id',
+                             '-e', 'no',
+                             'connection', 'show', uuid],
+                            split=False)['stdout']
         except (OSError, CalledProcessError) as e:
             logger.warning('Error reading client-id for connection {}: {}'.format(uuid, e))
             errors += 1
@@ -57,7 +59,7 @@ def update_client_ids(logger):
         new_client_id = to_hexstring(client_id)
 
         try:
-            call(['nmcli', 'connection', 'modify', uuid, 'ipv4.dhcp-client-id', new_client_id])
+            run(['nmcli', 'connection', 'modify', uuid, 'ipv4.dhcp-client-id', new_client_id])
             changed += 1
             success = True
         except (OSError, CalledProcessError) as e:

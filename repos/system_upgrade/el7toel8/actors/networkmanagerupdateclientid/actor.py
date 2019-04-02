@@ -1,8 +1,5 @@
-from subprocess import CalledProcessError
-
 from leapp.actors import Actor
 from leapp.libraries.actor import networkmanagerupdateclientid
-from leapp.libraries.stdlib import call
 from leapp.models import NetworkManagerConfig
 from leapp.tags import FirstBootPhaseTag, IPUWorkflowTag
 
@@ -10,7 +7,7 @@ from leapp.tags import FirstBootPhaseTag, IPUWorkflowTag
 class NetworkManagerUpdateClientId(Actor):
     """
     Updates DHCP client-ids during Upgrade process.
-    
+
     When using dhcp=dhclient on Red Hat Enterprise Linux 7, a non-hexadecimal client-id (a string)
     is sent on the wire as is (i.e. the first character is the 'type' as per RFC 2132 section
     9.14). On Red Hat Enterprise Linux 8, a zero byte is prepended to string-only client-ids. To
@@ -30,5 +27,3 @@ class NetworkManagerUpdateClientId(Actor):
 
             networkmanagerupdateclientid.update_client_ids(self.log)
             break
-
-
